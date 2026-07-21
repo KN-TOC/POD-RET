@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>POD Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Proof of Delivery Monitoring</p>
+        <h1>POD Return Dashboard</h1>
+        <p class="hero-copy">Upload an Excel or CSV file to monitor delivery performance, POD return status, and subcontractor follow-up workload.</p>
+      </div>
+      <label class="upload-card">
+        <span class="upload-icon" aria-hidden="true">&uarr;</span>
+        <span class="upload-title">Upload data</span>
+        <span class="upload-copy">Excel or CSV source file</span>
+        <span class="upload-types">.xlsx .xls .csv</span>
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv">
+      </label>
+    </section>
+
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label>
+        <span>Hub</span>
+        <select id="hubFilter"></select>
+      </label>
+      <label>
+        <span>Region</span>
+        <select id="regionFilter"></select>
+      </label>
+      <label>
+        <span>Month</span>
+        <select id="monthFilter"></select>
+      </label>
+      <label>
+        <span>Sub-Contractor</span>
+        <select id="subFilter"></select>
+      </label>
+      <button id="resetFilters" type="button">Reset filters</button>
+    </section>
+
+    <section class="status-line" aria-live="polite">
+      <span id="fileStatus">No data loaded. Upload a POD file to begin.</span>
+      <span id="rowStatus"></span>
+    </section>
+
+    <section class="kpi-grid" aria-label="POD KPIs">
+      <article class="kpi-card">
+        <span>Total Deliveries</span>
+        <strong id="totalDeliveries">0</strong>
+        <small id="totalContext">All delivery records</small>
+      </article>
+      <article class="kpi-card good">
+        <span>On-Time</span>
+        <strong id="onTime">0</strong>
+        <small id="onTimeRate">0%</small>
+      </article>
+      <article class="kpi-card warning">
+        <span>Not On-Time</span>
+        <strong id="notOnTime">0</strong>
+        <small id="lateRate">0%</small>
+      </article>
+      <article class="kpi-card pending">
+        <span>Pending POD</span>
+        <strong id="pendingPod">0</strong>
+        <small id="pendingRate">0%</small>
+      </article>
+      <article class="kpi-card danger">
+        <span>Cancel</span>
+        <strong id="cancelCount">0</strong>
+        <small id="cancelRate">0%</small>
+      </article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel performance-panel">
+        <div class="panel-header">
+          <div>
+            <h2>POD Status Mix</h2>
+            <p>Status distribution for the selected data</p>
+          </div>
+        </div>
+        <div class="donut-wrap">
+          <div id="statusDonut" class="donut" role="img" aria-label="POD status mix chart"></div>
+          <div id="statusLegend" class="legend"></div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Daily POD Return Plan vs Actual</h2>
+            <p>Grouped by Loading date; compares planned POD return and actual POD return counts</p>
+          </div>
+        </div>
+        <div id="dailyChart" class="daily-chart" role="img" aria-label="Daily plan versus actual POD return chart"></div>
+      </article>
+
+      <article class="panel wide">
+        <div class="panel-header">
+          <div>
+            <h2>Top Sub-Contractors Pending POD</h2>
+            <p>Ranked by pending POD count</p>
+          </div>
+        </div>
+        <div id="subBars" class="bar-list"></div>
+      </article>
+
+      <article class="panel wide">
+        <div class="panel-header">
+          <div>
+            <h2>POD Due by Today</h2>
+            <p>Open records with Plan POD Return on or before today</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sub</th>
+                <th>Hub</th>
+                <th>Region</th>
+                <th>Order</th>
+                <th>Loading Date</th>
+                <th>Plan POD</th>
+                <th>Days Due</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="pendingTable"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
