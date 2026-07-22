@@ -528,7 +528,7 @@ function renderDueTodayTable(rows) {
       <td>${formatDate(row.loadingDateValue)}</td>
       <td>${formatDate(row.planPodDate)}</td>
       <td>${formatDaysDue(row)}</td>
-      <td><span class="pill open">Open</span></td>
+      <td><span class="pill open">Pending</span></td>
     </tr>
   `).join("");
 }
