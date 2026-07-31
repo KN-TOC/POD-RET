@@ -78,40 +78,181 @@
       </article>
     </section>
 
-    <section class="dashboard-grid">
-      <article class="panel performance-panel">
+    <section class="metrics-grid">
+      <article class="panel cell-status">
         <div class="panel-header">
           <div>
             <h2>POD Status Mix</h2>
             <p>Status distribution for the selected data</p>
           </div>
         </div>
-        <div class="donut-wrap">
+        <div class="donut-wrap stacked">
           <div id="statusDonut" class="donut" role="img" aria-label="POD status mix chart"></div>
           <div id="statusLegend" class="legend"></div>
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel cell-volume">
+        <div class="panel-header">
+          <div>
+            <h2>Sub-Contractor Volume Share</h2>
+            <p>Share of total delivery workload handled by each sub-contractor</p>
+          </div>
+        </div>
+        <div class="donut-wrap stacked">
+          <div id="volumeDonut" class="donut" role="img" aria-label="Sub-contractor volume share chart"></div>
+          <div id="volumeLegend" class="legend"></div>
+        </div>
+      </article>
+
+      <article class="panel cell-daily">
         <div class="panel-header">
           <div>
             <h2>Daily POD Return Plan vs Actual</h2>
             <p>Grouped by Loading date; compares planned POD return and actual POD return counts</p>
           </div>
         </div>
-        <div id="dailyChart" class="daily-chart" role="img" aria-label="Daily plan versus actual POD return chart"></div>
+        <div id="dailyChart" class="daily-chart daily-chart-tall" role="img" aria-label="Daily plan versus actual POD return chart"></div>
       </article>
+    </section>
 
-      <article class="panel wide">
+    <section class="dashboard-grid">
+      <article class="panel align-chart-table">
         <div class="panel-header">
           <div>
-            <h2>Top Sub-Contractors Pending POD</h2>
-            <p>Ranked by pending POD count</p>
+            <h2>POD Returned Ahead of Plan</h2>
+            <p>Among documents already returned (Actual POD Return), how many came back before, on, or after the Plan POD Return date</p>
           </div>
         </div>
-        <div id="subBars" class="bar-list"></div>
+        <div class="donut-wrap large">
+          <div id="earlyDonut" class="donut" role="img" aria-label="POD return timing mix chart"></div>
+          <div id="earlyLegend" class="legend"></div>
+        </div>
+        <div class="table-wrap">
+          <table class="paired-table">
+            <thead>
+              <tr>
+                <th>Sub</th>
+                <th>Returned</th>
+                <th>Early</th>
+                <th>Early Rate</th>
+                <th>Avg Days Early</th>
+                <th>Late</th>
+              </tr>
+            </thead>
+            <tbody id="earlyLeaderboard"></tbody>
+          </table>
+        </div>
       </article>
 
+      <article class="panel align-chart-table">
+        <div class="panel-header">
+          <div>
+            <h2>Sub-Contractor POD Pending — Rate vs Volume</h2>
+            <p>Bubble position shows pending <strong>rate</strong> (fair across sub sizes); bubble size shows pending <strong>count</strong> (follow-up workload). Dashed line marks the fleet average rate.</p>
+          </div>
+        </div>
+        <div id="subScatter" class="sub-scatter" role="img" aria-label="Sub-contractor pending rate versus delivery volume chart"></div>
+        <div class="table-wrap">
+          <table class="paired-table">
+            <thead>
+              <tr>
+                <th>Sub</th>
+                <th>Deliveries</th>
+                <th>Pending</th>
+                <th>Pending Rate</th>
+                <th>vs Fleet Avg</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody id="subLeaderboard"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="analytics-grid">
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>POD Aging</h2>
+            <p>Currently pending records, grouped by days since Loading date</p>
+          </div>
+        </div>
+        <div id="agingBars" class="bar-list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Expected POD Incoming</h2>
+            <p>Pending records not yet due, grouped by days until Plan POD Return</p>
+          </div>
+        </div>
+        <div id="incomingBars" class="bar-list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Average POD Return Days</h2>
+            <p>Days vs. each record's own province SLA target (fair across regions with different transit times)</p>
+          </div>
+          <label class="panel-control">
+            <span>Group by</span>
+            <select id="avgReturnDim">
+              <option value="region">Region</option>
+              <option value="hub">Hub</option>
+              <option value="sub" selected>Sub-Contractor</option>
+            </select>
+          </label>
+        </div>
+        <div id="avgReturnBars" class="bar-list"></div>
+      </article>
+
+      <article class="panel span-2">
+        <div class="panel-header">
+          <div>
+            <h2>Pending &amp; On-Time Trend</h2>
+            <p>Share of active deliveries that are Pending vs On-Time over time, grouped by Loading date</p>
+          </div>
+          <label class="panel-control">
+            <span>Group by</span>
+            <select id="trendGranularity">
+              <option value="week" selected>Weekly</option>
+              <option value="month">Monthly</option>
+            </select>
+          </label>
+        </div>
+        <div id="trendChart" class="daily-chart" role="img" aria-label="Weekly or monthly pending and on-time rate trend chart"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Carrier Scorecard</h2>
+            <p>Combined view of volume share, pending rate, average days vs. each record's province SLA, and an overall quality score per sub-contractor</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="paired-table">
+            <thead>
+              <tr>
+                <th>Sub</th>
+                <th>Volume</th>
+                <th>Volume Share</th>
+                <th>Pending Rate</th>
+                <th>Avg vs SLA</th>
+                <th>Quality Score</th>
+              </tr>
+            </thead>
+            <tbody id="scorecardBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="dashboard-grid">
       <article class="panel wide">
         <div class="panel-header">
           <div>
@@ -128,7 +269,7 @@
                 <th>Region</th>
                 <th>Order</th>
                 <th>Loading Date</th>
-                <th>Plan POD</th>
+                <th>Plan POD Return</th>
                 <th>Days Due</th>
                 <th>Status</th>
               </tr>
