@@ -6,7 +6,9 @@ const state = {
     region: "All",
     month: "All",
     sub: "All"
-  }
+  },
+  avgReturnDim: "sub",
+  trendGranularity: "week"
 };
 
 const statusColors = {
@@ -18,12 +20,139 @@ const statusColors = {
   actual: "#08c792"
 };
 
+const subPalette = ["#003369", "#0099da", "#08c792", "#ed2939", "#f2a900", "#8e44ad", "#62635b", "#16a085", "#c0392b", "#2c3e50"];
+
+const agingBuckets = [
+  { label: "0–3 days", min: 0, max: 3 },
+  { label: "4–7 days", min: 4, max: 7 },
+  { label: "8–14 days", min: 8, max: 14 },
+  { label: ">14 days", min: 15, max: Infinity }
+];
+
+const agingColors = ["#08c792", "#0099da", "#f2a900", "#ed2939"];
+
+const incomingBuckets = [
+  { label: "Due today", min: 0, max: 0 },
+  { label: "1–3 days", min: 1, max: 3 },
+  { label: "4–7 days", min: 4, max: 7 },
+  { label: ">7 days", min: 8, max: Infinity }
+];
+
+const incomingColors = ["#003369", "#0099da", "#08c792", "#62635b"];
+
+const provinceSlaTable = {
+  "CRC": 5,
+  "BANGKOK": 5,
+  "SAMUTPRAKAN": 5,
+  "NONTHABURI": 5,
+  "PATHUMTHANI": 5,
+  "KANCHANABURI": 7,
+  "LOPBURI": 7,
+  "NAKHONPATHOM": 7,
+  "PHETCHABURI": 7,
+  "PHRANAKHONSIAYUTTHAYA": 7,
+  "PRACHUAPKHIRIKHAN": 7,
+  "RATCHABURI": 7,
+  "SARABURI": 7,
+  "SINGBURI": 7,
+  "ANGTHONG": 7,
+  "CHAINAT": 7,
+  "SUPHANBURI": 7,
+  "UTHAITHANI": 7,
+  "CHACHOENGSAO": 7,
+  "CHONBURI": 7,
+  "RAYONG": 7,
+  "CHANTHABURI": 7,
+  "NAKHONNAYOK": 7,
+  "PRACHINBURI": 7,
+  "SAKAEO": 7,
+  "TRAT": 7,
+  "SAMUTSAKHON": 7,
+  "SAMUTSONGKRAM": 7,
+  "CHIANGMAI": 10,
+  "CHIANGRAI": 10,
+  "LAMPHUN": 10,
+  "NAKHONSAWAN": 10,
+  "PHAYAO": 10,
+  "PHETCHABUN": 10,
+  "PHICHIT": 10,
+  "PHITSANULOK": 10,
+  "PHRAE": 10,
+  "UTTARADIT": 10,
+  "KAMPHAENGPHET": 10,
+  "LAMPANG": 10,
+  "MAEHONGSON": 10,
+  "NAN": 10,
+  "SUKHOTHAI": 10,
+  "TAK": 10,
+  "BURIRAM": 10,
+  "KHONKAEN": 10,
+  "MAHASARAKHAM": 10,
+  "NAKHONRATCHASIMA": 10,
+  "NONGKHAI": 10,
+  "ROIET": 10,
+  "SAKONNAKHON": 10,
+  "SURIN": 10,
+  "UBONRATCHATHANI": 10,
+  "UDONTHANI": 10,
+  "AMNATCHAROEN": 10,
+  "BUENGKAN": 10,
+  "CHAIYAPHUM": 10,
+  "KALASIN": 10,
+  "LOEI": 10,
+  "MUKDAHAN": 10,
+  "NAKHONPHANOM": 10,
+  "NONGBUALAMPHU": 10,
+  "SISAKET": 10,
+  "YASOTHON": 10,
+  "CHUMPHON": 10,
+  "KRABI": 10,
+  "NAKHONSITHAMMARAT": 10,
+  "PHUKET": 10,
+  "SONGKHLA": 10,
+  "SURATTHANI": 10,
+  "TRANG": 10,
+  "NARATHIVAT": 10,
+  "PATTHANEE": 10,
+  "PATTANI": 10,
+  "PHANGNGA": 10,
+  "PHATTHALUNG": 10,
+  "RANONG": 10,
+  "SATUN": 10,
+  "YALA": 10
+};
+
+const regionSlaFallback = {
+  "BKK": 5,
+  "BANGKOK": 5,
+  "CENTRAL": 7,
+  "EAST": 7,
+  "WEST": 7,
+  "NORTH": 10,
+  "NORTHEAST": 10,
+  "ISAN": 10,
+  "SOUTH": 10
+};
+
+function normalizeLookupKey(value) {
+  return String(value ?? "").trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function getProvinceSla(province, region) {
+  const provinceKey = normalizeLookupKey(province);
+  if (provinceSlaTable[provinceKey] !== undefined) return provinceSlaTable[provinceKey];
+  const regionKey = normalizeLookupKey(region);
+  if (regionSlaFallback[regionKey] !== undefined) return regionSlaFallback[regionKey];
+  return null;
+}
+
 const columnAliases = {
   deliveryStatus: ["Adjust Delivery Status", "Delivery Status", "Type Delivered", "Delivered"],
   podStatus: ["Adjust POD Status", "POD Status", "POD Return Status", "POD"],
   sub: ["Sub", "Sub-Contractor", "Sub Contractor", "Transporter", "Vendor", "3PL"],
   hub: ["Hub", "Zone"],
   region: ["Region"],
+  province: ["Province"],
   month: ["Month"],
   order: ["Externorderkey", "Order No", "Order", "DO", "Shipment No"],
   loadingDate: ["Loading date", "Loading Date", "Load Date", "Loading"],
@@ -59,9 +188,22 @@ const elements = {
   cancelRate: document.getElementById("cancelRate"),
   statusDonut: document.getElementById("statusDonut"),
   statusLegend: document.getElementById("statusLegend"),
+  volumeDonut: document.getElementById("volumeDonut"),
+  volumeLegend: document.getElementById("volumeLegend"),
+  earlyDonut: document.getElementById("earlyDonut"),
+  earlyLegend: document.getElementById("earlyLegend"),
+  earlyLeaderboard: document.getElementById("earlyLeaderboard"),
   dailyChart: document.getElementById("dailyChart"),
-  subBars: document.getElementById("subBars"),
-  pendingTable: document.getElementById("pendingTable")
+  subScatter: document.getElementById("subScatter"),
+  subLeaderboard: document.getElementById("subLeaderboard"),
+  pendingTable: document.getElementById("pendingTable"),
+  agingBars: document.getElementById("agingBars"),
+  incomingBars: document.getElementById("incomingBars"),
+  avgReturnDim: document.getElementById("avgReturnDim"),
+  avgReturnBars: document.getElementById("avgReturnBars"),
+  trendGranularity: document.getElementById("trendGranularity"),
+  trendChart: document.getElementById("trendChart"),
+  scorecardBody: document.getElementById("scorecardBody")
 };
 
 elements.fileInput.addEventListener("change", handleFileUpload);
@@ -76,6 +218,16 @@ elements.resetFilters.addEventListener("click", () => {
     state.filters[key] = event.target.value;
     renderDashboard();
   });
+});
+
+elements.avgReturnDim.addEventListener("change", (event) => {
+  state.avgReturnDim = event.target.value;
+  renderAvgReturnBars(getFilteredRows());
+});
+
+elements.trendGranularity.addEventListener("change", (event) => {
+  state.trendGranularity = event.target.value;
+  renderTrendChart(getFilteredRows());
 });
 
 renderDashboard();
@@ -187,6 +339,7 @@ function normalizeRow(row) {
     sub: getColumn(row, "sub") || "Unassigned",
     hub: getColumn(row, "hub") || "Unassigned",
     region: getColumn(row, "region") || "Unassigned",
+    province: getColumn(row, "province") || "Unassigned",
     month: getColumn(row, "month") || deriveMonth(row),
     order: getColumn(row, "order") || "-",
     loadingDate: getColumn(row, "loadingDate"),
@@ -200,6 +353,7 @@ function normalizeRow(row) {
   normalized.planPodDate = parseDate(normalized.planPod);
   normalized.actualPodDate = parseDate(normalized.actualPod);
   normalized.deliveryDateValue = parseDate(normalized.deliveryDate);
+  normalized.slaDays = getProvinceSla(normalized.province, normalized.region);
   normalized.bucket = classifyRow(normalized);
   return normalized;
 }
@@ -333,9 +487,16 @@ function renderDashboard() {
   elements.rowStatus.textContent = state.normalized.length ? `${formatNumber(rows.length)} of ${formatNumber(state.normalized.length)} rows shown` : "";
 
   renderDonut(summary);
+  renderVolumeShare(rows);
   renderDailyChart(rows);
-  renderSubBars(rows);
+  renderSubPerformance(rows);
+  renderReturnTiming(rows);
   renderDueTodayTable(rows);
+  renderAgingBars(rows);
+  renderIncomingBars(rows);
+  renderAvgReturnBars(rows);
+  renderTrendChart(rows);
+  renderScorecard(rows);
 }
 
 function getFilteredRows() {
@@ -382,6 +543,42 @@ function renderDonut(summary) {
   `).join("");
 }
 
+function renderVolumeShare(rows) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const name = row.sub || "Unassigned";
+    map.set(name, (map.get(name) || 0) + 1);
+  });
+
+  const total = rows.length;
+  const entries = Array.from(map.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count], index) => [name, count, subPalette[index % subPalette.length]]);
+
+  if (!total || !entries.length) {
+    elements.volumeDonut.style.background = "conic-gradient(var(--surface-2) 0 100%)";
+    elements.volumeLegend.innerHTML = `<div class="empty">No sub-contractor volume data for the selected data.</div>`;
+    return;
+  }
+
+  let start = 0;
+  const gradient = entries.map(([, count, color]) => {
+    const end = start + (count / total) * 100;
+    const segment = `${color} ${start}% ${end}%`;
+    start = end;
+    return segment;
+  }).join(", ");
+
+  elements.volumeDonut.style.background = `conic-gradient(${gradient})`;
+  elements.volumeLegend.innerHTML = entries.map(([name, count, color]) => `
+    <div class="legend-item">
+      <span class="swatch" style="background:${color}"></span>
+      <span>${escapeHtml(name)}</span>
+      <strong>${formatNumber(count)} (${formatPercent(count, total)})</strong>
+    </div>
+  `).join("");
+}
+
 function renderDailyChart(rows) {
   const points = buildDailyPlanActual(rows);
   if (!points.length) {
@@ -389,9 +586,9 @@ function renderDailyChart(rows) {
     return;
   }
 
-  const width = 680;
-  const height = 300;
-  const margin = { top: 24, right: 24, bottom: 54, left: 48 };
+  const width = 1040;
+  const height = 460;
+  const margin = { top: 28, right: 32, bottom: 58, left: 56 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const maxValue = Math.max(...points.map((point) => Math.max(point.plan, point.actual)), 1);
@@ -484,28 +681,215 @@ function makeTicks(maxValue, count) {
   return ticks;
 }
 
-function renderSubBars(rows) {
-  const groups = topGroups(rows, "sub", 10);
-  const maxPending = Math.max(...groups.map((group) => group.pending), 1);
+function buildSubPerformance(rows) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const name = row.sub || "Unassigned";
+    if (!map.has(name)) map.set(name, { name, total: 0, active: 0, pending: 0 });
+    const group = map.get(name);
+    group.total += 1;
+    if (row.bucket === "cancel") return;
+    group.active += 1;
+    if (row.bucket === "pending") group.pending += 1;
+  });
 
-  if (!groups.length || groups.every((group) => group.pending === 0)) {
-    elements.subBars.innerHTML = `<div class="empty">No pending POD records found for the selected data.</div>`;
+  const groups = Array.from(map.values()).filter((group) => group.active > 0);
+  const fleetActive = groups.reduce((sum, group) => sum + group.active, 0);
+  const fleetPending = groups.reduce((sum, group) => sum + group.pending, 0);
+  const fleetAvgRate = fleetActive ? fleetPending / fleetActive : 0;
+  const volumeValues = groups.map((group) => group.active).sort((a, b) => a - b);
+  const lowSampleCutoff = volumeValues.length ? volumeValues[Math.floor(volumeValues.length * 0.25)] : 0;
+
+  groups.forEach((group) => {
+    group.rate = group.active ? group.pending / group.active : 0;
+    group.deltaVsAvg = group.rate - fleetAvgRate;
+    group.lowSample = group.active <= Math.max(lowSampleCutoff, 20) && groups.length > 1;
+    if (group.rate >= fleetAvgRate * 1.5 && fleetAvgRate > 0) group.tier = "priority";
+    else if (group.rate > fleetAvgRate) group.tier = "watch";
+    else group.tier = "good";
+  });
+
+  groups.sort((a, b) => b.rate - a.rate || b.pending - a.pending || a.name.localeCompare(b.name));
+  return { groups, fleetAvgRate };
+}
+
+function renderSubPerformance(rows) {
+  const { groups, fleetAvgRate } = buildSubPerformance(rows);
+
+  if (!groups.length) {
+    elements.subScatter.innerHTML = `<div class="empty">No sub-contractor records available for the selected data.</div>`;
+    elements.subLeaderboard.innerHTML = `<tr><td class="empty" colspan="6">No sub-contractor records available for the selected data.</td></tr>`;
     return;
   }
 
-  elements.subBars.innerHTML = groups.filter((group) => group.pending > 0).map((group) => {
-    const width = (group.pending / maxPending) * 100;
+  renderSubScatter(groups, fleetAvgRate);
+  renderSubLeaderboard(groups, fleetAvgRate);
+}
+
+function renderSubScatter(groups, fleetAvgRate) {
+  const width = 720;
+  const height = 340;
+  const margin = { top: 24, right: 32, bottom: 46, left: 56 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+
+  const maxVolume = Math.max(...groups.map((group) => group.active), 1);
+  const maxRate = Math.max(...groups.map((group) => group.rate), fleetAvgRate, 0.05);
+  const xMax = maxVolume * 1.12;
+  const yMax = maxRate * 1.2;
+
+  const maxPending = Math.max(...groups.map((group) => group.pending), 1);
+  const radiusFor = (pending) => 8 + Math.sqrt(pending / maxPending) * 26;
+
+  const xScale = (value) => margin.left + (value / xMax) * plotWidth;
+  const yScale = (value) => margin.top + plotHeight - (value / yMax) * plotHeight;
+
+  const xTicks = makeTicks(xMax, 4);
+  const yTicksPct = makeTicks(Math.round(yMax * 100), 4);
+
+  const avgY = yScale(fleetAvgRate);
+
+  elements.subScatter.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" class="scatter-chart" role="img" aria-labelledby="subScatterTitle subScatterDesc">
+      <title id="subScatterTitle">Sub-contractor pending rate versus delivery volume</title>
+      <desc id="subScatterDesc">Scatter chart plotting each sub-contractor's pending POD rate against total delivery volume, with bubble size representing pending count and a dashed line marking the fleet average pending rate.</desc>
+      <g class="scatter-grid">
+        ${yTicksPct.map((tickPct) => {
+          const y = yScale(tickPct / 100);
+          return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}"></line><text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${tickPct}%</text>`;
+        }).join("")}
+      </g>
+      <g class="scatter-axis">
+        <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + plotHeight}"></line>
+        <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}"></line>
+        ${xTicks.map((tick) => {
+          const x = xScale(tick);
+          return `<text x="${x}" y="${height - 24}" text-anchor="middle">${formatNumber(tick)}</text>`;
+        }).join("")}
+        <text class="axis-label" x="${margin.left + plotWidth / 2}" y="${height - 4}" text-anchor="middle">Delivery Volume (active deliveries)</text>
+        <text class="axis-label" transform="translate(16 ${margin.top + plotHeight / 2}) rotate(-90)" text-anchor="middle">Pending Rate</text>
+      </g>
+      <line class="avg-line" x1="${margin.left}" y1="${avgY}" x2="${width - margin.right}" y2="${avgY}"></line>
+      <text class="avg-label" x="${width - margin.right}" y="${avgY - 6}" text-anchor="end">Fleet avg ${formatPercentValue(fleetAvgRate)}</text>
+      ${groups.map((group) => {
+        const cx = xScale(group.active);
+        const cy = yScale(group.rate);
+        const r = radiusFor(group.pending);
+        return `
+          <circle class="sub-bubble tier-${group.tier}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}"${group.lowSample ? " stroke-dasharray=\"3 3\"" : ""}>
+            <title>${escapeHtml(group.name)} — ${formatNumber(group.active)} deliveries, ${formatNumber(group.pending)} pending (${formatPercentValue(group.rate)})</title>
+          </circle>
+          <text class="bubble-label" x="${cx.toFixed(1)}" y="${(cy - r - 6).toFixed(1)}">${escapeHtml(group.name)}</text>
+          <text class="bubble-sub" x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}">${formatPercentValue(group.rate)}</text>
+        `;
+      }).join("")}
+    </svg>
+  `;
+}
+
+function renderSubLeaderboard(groups, fleetAvgRate) {
+  const tierLabel = { priority: "Priority follow-up", watch: "Watch", good: "On track" };
+
+  elements.subLeaderboard.innerHTML = groups.map((group) => {
+    const deltaPts = (group.rate - fleetAvgRate) * 100;
+    const deltaText = `${deltaPts >= 0 ? "+" : ""}${deltaPts.toFixed(1)} pts`;
+    const deltaClass = deltaPts > 0 ? "trend-up" : deltaPts < 0 ? "trend-down" : "";
     return `
-      <div class="bar-row">
-        <div class="bar-head">
-          <strong>${escapeHtml(group.name)}</strong>
-          <span>${formatNumber(group.pending)} pending</span>
-        </div>
-        <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${width}%"></div></div>
-        <div class="bar-meta">${formatPercent(group.pending, group.total)} pending rate from ${formatNumber(group.total)} deliveries</div>
-      </div>
+      <tr>
+        <td>${escapeHtml(group.name)}</td>
+        <td>${formatNumber(group.active)}</td>
+        <td>${formatNumber(group.pending)}</td>
+        <td>${formatPercentValue(group.rate)}</td>
+        <td class="${deltaClass}">${deltaText}</td>
+        <td><span class="pill tier-${group.tier}">${tierLabel[group.tier]}</span></td>
+      </tr>
     `;
   }).join("");
+}
+
+function buildReturnTiming(rows) {
+  const returned = rows.filter((row) => row.actualPodDate && row.planPodDate);
+  const overall = { early: 0, onPlan: 0, late: 0, earlyDaysSum: 0 };
+  const bySub = new Map();
+
+  returned.forEach((row) => {
+    const diffDays = Math.round((row.planPodDate - row.actualPodDate) / 86400000);
+    const bucket = diffDays > 0 ? "early" : diffDays === 0 ? "onPlan" : "late";
+
+    overall[bucket] += 1;
+    if (bucket === "early") overall.earlyDaysSum += diffDays;
+
+    const name = row.sub || "Unassigned";
+    if (!bySub.has(name)) bySub.set(name, { name, returned: 0, early: 0, onPlan: 0, late: 0, earlyDaysSum: 0 });
+    const group = bySub.get(name);
+    group.returned += 1;
+    group[bucket] += 1;
+    if (bucket === "early") group.earlyDaysSum += diffDays;
+  });
+
+  const groups = Array.from(bySub.values())
+    .map((group) => ({
+      ...group,
+      earlyRate: group.returned ? group.early / group.returned : 0,
+      avgDaysEarly: group.early ? group.earlyDaysSum / group.early : 0
+    }))
+    .sort((a, b) => b.earlyRate - a.earlyRate || b.returned - a.returned || a.name.localeCompare(b.name));
+
+  const returnedTotal = overall.early + overall.onPlan + overall.late;
+  overall.avgDaysEarly = overall.early ? overall.earlyDaysSum / overall.early : 0;
+
+  return { overall, groups, returnedTotal };
+}
+
+function renderReturnTiming(rows) {
+  const { overall, groups, returnedTotal } = buildReturnTiming(rows);
+
+  if (!returnedTotal) {
+    elements.earlyDonut.style.background = "conic-gradient(var(--surface-2) 0 100%)";
+    elements.earlyLegend.innerHTML = `<div class="empty">No returned POD records with both Plan and Actual POD Return dates for the selected data.</div>`;
+    elements.earlyLeaderboard.innerHTML = `<tr><td class="empty" colspan="6">No returned POD records available for the selected data.</td></tr>`;
+    return;
+  }
+
+  const values = [
+    ["Early", overall.early, "#08c792"],
+    ["On Plan Date", overall.onPlan, "#0099da"],
+    ["Late", overall.late, "#ed2939"]
+  ];
+
+  let start = 0;
+  const gradient = values.map(([, count, color]) => {
+    const end = start + (count / returnedTotal) * 100;
+    const segment = `${color} ${start}% ${end}%`;
+    start = end;
+    return segment;
+  }).join(", ");
+
+  elements.earlyDonut.style.background = `conic-gradient(${gradient})`;
+  elements.earlyLegend.innerHTML = values.map(([label, count, color]) => `
+    <div class="legend-item">
+      <span class="swatch" style="background:${color}"></span>
+      <span>${label}</span>
+      <strong>${formatNumber(count)} (${formatPercent(count, returnedTotal)})</strong>
+    </div>
+  `).join("") + `
+    <div class="legend-item">
+      <span class="swatch" style="background:transparent"></span>
+      <span>Avg days early (early group)</span>
+      <strong>${overall.avgDaysEarly.toFixed(1)} days</strong>
+    </div>
+  `;
+
+  elements.earlyLeaderboard.innerHTML = groups.map((group) => `
+    <tr>
+      <td>${escapeHtml(group.name)}</td>
+      <td>${formatNumber(group.returned)}</td>
+      <td>${formatNumber(group.early)}</td>
+      <td>${formatPercentValue(group.earlyRate)}</td>
+      <td>${group.early ? `${group.avgDaysEarly.toFixed(1)} days` : "-"}</td>
+      <td>${formatNumber(group.late)}</td>
+    </tr>
+  `).join("");
 }
 
 function renderDueTodayTable(rows) {
@@ -519,7 +903,10 @@ function renderDueTodayTable(rows) {
     return;
   }
 
-  elements.pendingTable.innerHTML = dueRows.map((row) => `
+  elements.pendingTable.innerHTML = dueRows.map((row) => {
+    const days = daysDue(row.planPodDate, today);
+    const isOverdue = days > 0;
+    return `
     <tr>
       <td>${escapeHtml(row.sub)}</td>
       <td>${escapeHtml(row.hub)}</td>
@@ -527,35 +914,340 @@ function renderDueTodayTable(rows) {
       <td>${escapeHtml(row.order)}</td>
       <td>${formatDate(row.loadingDateValue)}</td>
       <td>${formatDate(row.planPodDate)}</td>
-      <td>${formatDaysDue(row)}</td>
-      <td><span class="pill open">Pending</span></td>
+      <td>${days}</td>
+      <td><span class="pill ${isOverdue ? "overdue" : "due-today"}">${isOverdue ? "Overdue" : "Due Today"}</span></td>
     </tr>
-  `).join("");
-}
-
-function formatDaysDue(row) {
-  const days = daysDue(row.planPodDate, startOfToday());
-  if (days <= 0) return "Due today";
-  return `${days} day${days === 1 ? "" : "s"}`;
+  `;
+  }).join("");
 }
 
 function daysDue(planDate, referenceDate) {
   return Math.max(0, Math.floor((stripTime(referenceDate) - stripTime(planDate)) / 86400000));
 }
 
-function topGroups(rows, key, limit) {
+function buildPodAging(rows) {
+  const today = startOfToday();
+  const counts = agingBuckets.map(() => 0);
+  let total = 0;
+
+  rows.forEach((row) => {
+    if (row.bucket !== "pending" || !row.loadingDateValue) return;
+    const age = Math.floor((today - stripTime(row.loadingDateValue)) / 86400000);
+    const index = agingBuckets.findIndex((bucket) => age >= bucket.min && age <= bucket.max);
+    if (index >= 0) {
+      counts[index] += 1;
+      total += 1;
+    }
+  });
+
+  return { counts, total };
+}
+
+function renderAgingBars(rows) {
+  const { counts, total } = buildPodAging(rows);
+
+  if (!total) {
+    elements.agingBars.innerHTML = `<div class="empty">No pending POD records for the selected data.</div>`;
+    return;
+  }
+
+  const maxCount = Math.max(...counts, 1);
+  elements.agingBars.innerHTML = agingBuckets.map((bucket, index) => {
+    const count = counts[index];
+    const width = (count / maxCount) * 100;
+    return `
+      <div class="bar-row">
+        <div class="bar-head">
+          <strong>${bucket.label}</strong>
+          <span>${formatNumber(count)}</span>
+        </div>
+        <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${width}%; background:${agingColors[index]}"></div></div>
+        <div class="bar-meta">${formatPercent(count, total)} of pending records</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildExpectedIncoming(rows) {
+  const today = startOfToday();
+  const counts = incomingBuckets.map(() => 0);
+  let total = 0;
+
+  rows.forEach((row) => {
+    if (row.bucket !== "pending" || !row.planPodDate) return;
+    const daysUntil = Math.floor((stripTime(row.planPodDate) - today) / 86400000);
+    if (daysUntil < 0) return;
+    const index = incomingBuckets.findIndex((bucket) => daysUntil >= bucket.min && daysUntil <= bucket.max);
+    if (index >= 0) {
+      counts[index] += 1;
+      total += 1;
+    }
+  });
+
+  return { counts, total };
+}
+
+function renderIncomingBars(rows) {
+  const { counts, total } = buildExpectedIncoming(rows);
+
+  if (!total) {
+    elements.incomingBars.innerHTML = `<div class="empty">No upcoming pending POD records for the selected data.</div>`;
+    return;
+  }
+
+  const maxCount = Math.max(...counts, 1);
+  elements.incomingBars.innerHTML = incomingBuckets.map((bucket, index) => {
+    const count = counts[index];
+    const width = (count / maxCount) * 100;
+    return `
+      <div class="bar-row">
+        <div class="bar-head">
+          <strong>${bucket.label}</strong>
+          <span>${formatNumber(count)}</span>
+        </div>
+        <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${width}%; background:${incomingColors[index]}"></div></div>
+        <div class="bar-meta">${formatPercent(count, total)} of not-yet-due pending records</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildAvgReturnDays(rows, dimension) {
   const map = new Map();
   rows.forEach((row) => {
-    const name = row[key] || "Unassigned";
-    if (!map.has(name)) map.set(name, { name, total: 0, pending: 0 });
-    const group = map.get(name);
-    group.total += 1;
-    if (row.bucket === "pending") group.pending += 1;
+    if (!row.actualPodDate || !row.loadingDateValue) return;
+    const key = row[dimension] || "Unassigned";
+    const days = Math.round((row.actualPodDate - row.loadingDateValue) / 86400000);
+    if (!map.has(key)) map.set(key, { name: key, sum: 0, count: 0, vsSlaSum: 0, vsSlaCount: 0 });
+    const group = map.get(key);
+    group.sum += days;
+    group.count += 1;
+    if (row.slaDays !== null && row.slaDays !== undefined) {
+      group.vsSlaSum += days - row.slaDays;
+      group.vsSlaCount += 1;
+    }
   });
 
   return Array.from(map.values())
-    .sort((a, b) => b.pending - a.pending || b.total - a.total || a.name.localeCompare(b.name))
-    .slice(0, limit);
+    .map((group) => ({
+      ...group,
+      avg: group.count ? group.sum / group.count : 0,
+      avgVsSla: group.vsSlaCount ? group.vsSlaSum / group.vsSlaCount : null,
+      slaCoverage: group.count ? group.vsSlaCount / group.count : 0
+    }))
+    .sort((a, b) => {
+      const aValue = a.avgVsSla === null ? -Infinity : a.avgVsSla;
+      const bValue = b.avgVsSla === null ? -Infinity : b.avgVsSla;
+      return bValue - aValue || b.avg - a.avg;
+    });
+}
+
+function renderAvgReturnBars(rows) {
+  const dimension = state.avgReturnDim;
+  const groups = buildAvgReturnDays(rows, dimension);
+
+  if (!groups.length) {
+    elements.avgReturnBars.innerHTML = `<div class="empty">No returned POD records with both Loading date and Actual POD Return for the selected data.</div>`;
+    return;
+  }
+
+  const maxAbs = Math.max(...groups.map((group) => Math.abs(group.avgVsSla ?? 0)), 1);
+  elements.avgReturnBars.innerHTML = groups.map((group) => {
+    const hasSla = group.avgVsSla !== null;
+    const width = hasSla ? (Math.abs(group.avgVsSla) / maxAbs) * 100 : 4;
+    const isBehind = hasSla && group.avgVsSla > 0;
+    const color = !hasSla ? "#c5c6bf" : isBehind ? "#ed2939" : "#08c792";
+    const vsSlaLabel = hasSla
+      ? `${group.avgVsSla >= 0 ? "+" : ""}${group.avgVsSla.toFixed(1)}d vs SLA`
+      : "No SLA mapped";
+    const coverageNote = hasSla && group.slaCoverage < 1
+      ? ` (${formatPercentValue(group.slaCoverage)} of records mapped to an SLA)`
+      : "";
+    return `
+      <div class="bar-row">
+        <div class="bar-head">
+          <strong>${escapeHtml(group.name)}</strong>
+          <span>${vsSlaLabel}</span>
+        </div>
+        <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${width}%; background:${color}"></div></div>
+        <div class="bar-meta">${group.avg.toFixed(1)} days actual avg · ${formatNumber(group.count)} returned records${coverageNote}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function monthLabel(date) {
+  return `${monthName(date)} ${date.getFullYear()}`;
+}
+
+function buildTrend(rows, granularity) {
+  const map = new Map();
+
+  let minDate = null;
+  rows.forEach((row) => {
+    if (row.bucket === "cancel" || !row.loadingDateValue) return;
+    const date = stripTime(row.loadingDateValue);
+    if (!minDate || date < minDate) minDate = date;
+  });
+
+  rows.forEach((row) => {
+    if (row.bucket === "cancel" || !row.loadingDateValue) return;
+    const date = stripTime(row.loadingDateValue);
+    let sortDate;
+    if (granularity === "month") {
+      sortDate = new Date(date.getFullYear(), date.getMonth(), 1);
+    } else {
+      const daysSinceStart = Math.floor((date - minDate) / 86400000);
+      const weekIndex = Math.floor(daysSinceStart / 7);
+      sortDate = new Date(minDate.getTime() + weekIndex * 7 * 86400000);
+    }
+    const key = dateKey(sortDate);
+
+    if (!map.has(key)) {
+      map.set(key, { key, sortDate, active: 0, pending: 0, onTime: 0 });
+    }
+    const point = map.get(key);
+    point.active += 1;
+    if (row.bucket === "pending") point.pending += 1;
+    if (row.bucket === "onTime") point.onTime += 1;
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => a.sortDate - b.sortDate)
+    .map((point) => ({
+      ...point,
+      pendingRate: point.active ? point.pending / point.active : 0,
+      onTimeRate: point.active ? point.onTime / point.active : 0,
+      label: granularity === "month" ? monthLabel(point.sortDate) : formatShortDate(point.sortDate)
+    }));
+}
+
+function renderTrendChart(rows) {
+  const granularity = state.trendGranularity;
+  const points = buildTrend(rows, granularity);
+
+  if (!points.length) {
+    elements.trendChart.innerHTML = `<div class="empty">No Loading date records available for the selected data.</div>`;
+    return;
+  }
+
+  const width = 1040;
+  const height = 360;
+  const margin = { top: 28, right: 32, bottom: 58, left: 56 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const maxValue = 1;
+  const xStep = points.length > 1 ? plotWidth / (points.length - 1) : plotWidth;
+  const yScale = (value) => margin.top + plotHeight - (value / maxValue) * plotHeight;
+  const xScale = (index) => margin.left + (points.length > 1 ? index * xStep : plotWidth / 2);
+  const pendingPath = linePath(points, (point) => point.pendingRate, xScale, yScale);
+  const onTimePath = linePath(points, (point) => point.onTimeRate, xScale, yScale);
+  const yTicksPct = [0, 20, 40, 60, 80, 100];
+  const labelEvery = Math.max(1, Math.ceil(points.length / 8));
+
+  elements.trendChart.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" class="line-chart" role="img" aria-labelledby="trendChartTitle trendChartDesc">
+      <title id="trendChartTitle">Pending and on-time rate trend</title>
+      <desc id="trendChartDesc">Line chart showing the percentage of active deliveries that are pending or on-time, grouped ${granularity === "month" ? "by month" : "by week"} of Loading date.</desc>
+      <g class="chart-grid">
+        ${yTicksPct.map((tickPct) => {
+          const y = yScale(tickPct / 100);
+          return `<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}"></line><text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${tickPct}%</text>`;
+        }).join("")}
+      </g>
+      <g class="chart-axis">
+        <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}"></line>
+        ${points.map((point, index) => {
+          if (index % labelEvery !== 0 && index !== points.length - 1) return "";
+          const x = xScale(index);
+          return `<text x="${x}" y="${height - 24}" text-anchor="middle">${escapeHtml(point.label)}</text>`;
+        }).join("")}
+      </g>
+      <path class="onplan-line" d="${pendingPath}"></path>
+      <path class="sla-within-line" d="${onTimePath}"></path>
+      ${points.map((point, index) => {
+        const x = xScale(index);
+        return `
+          <circle class="onplan-dot" cx="${x}" cy="${yScale(point.pendingRate)}" r="4">
+            <title>${escapeHtml(point.label)} - Pending rate: ${formatPercentValue(point.pendingRate)}</title>
+          </circle>
+          <circle class="sla-within-dot" cx="${x}" cy="${yScale(point.onTimeRate)}" r="4">
+            <title>${escapeHtml(point.label)} - On-Time rate: ${formatPercentValue(point.onTimeRate)}</title>
+          </circle>
+        `;
+      }).join("")}
+      <g class="chart-legend">
+        <line class="onplan-line" x1="${margin.left}" y1="14" x2="${margin.left + 22}" y2="14"></line>
+        <text x="${margin.left + 28}" y="18">Pending rate</text>
+        <line class="sla-within-line" x1="${margin.left + 150}" y1="14" x2="${margin.left + 172}" y2="14"></line>
+        <text x="${margin.left + 178}" y="18">On-Time rate</text>
+      </g>
+    </svg>
+  `;
+}
+
+function buildCarrierScorecard(rows) {
+  const volumeMap = new Map();
+  rows.forEach((row) => {
+    const name = row.sub || "Unassigned";
+    volumeMap.set(name, (volumeMap.get(name) || 0) + 1);
+  });
+  const totalVolume = rows.length;
+
+  const { groups: pendingGroups } = buildSubPerformance(rows);
+  const pendingByName = new Map(pendingGroups.map((group) => [group.name, group]));
+
+  const avgReturnGroups = buildAvgReturnDays(rows, "sub");
+  const avgReturnByName = new Map(avgReturnGroups.map((group) => [group.name, group]));
+
+  const names = new Set([...volumeMap.keys(), ...pendingByName.keys(), ...avgReturnByName.keys()]);
+
+  const scorecards = Array.from(names).map((name) => {
+    const volume = volumeMap.get(name) || 0;
+    const volumeShare = totalVolume ? volume / totalVolume : 0;
+    const pendingGroup = pendingByName.get(name);
+    const pendingRate = pendingGroup ? pendingGroup.rate : 0;
+    const avgReturnGroup = avgReturnByName.get(name);
+    const avgReturnDays = avgReturnGroup ? avgReturnGroup.avg : null;
+    const avgVsSla = avgReturnGroup ? avgReturnGroup.avgVsSla : null;
+
+    let score = 100;
+    score -= Math.min(pendingRate * 100, 100) * 0.6;
+    if (avgVsSla !== null) {
+      score -= Math.max(0, avgVsSla) * 3;
+    }
+    score = Math.max(0, Math.min(100, score));
+
+    return { name, volume, volumeShare, pendingRate, avgReturnDays, avgVsSla, score };
+  });
+
+  return scorecards.sort((a, b) => b.score - a.score || b.volume - a.volume);
+}
+
+function renderScorecard(rows) {
+  const scorecards = buildCarrierScorecard(rows);
+
+  if (!scorecards.length) {
+    elements.scorecardBody.innerHTML = `<tr><td class="empty" colspan="6">No sub-contractor records available for the selected data.</td></tr>`;
+    return;
+  }
+
+  elements.scorecardBody.innerHTML = scorecards.map((card) => {
+    const tier = card.score >= 80 ? "score-good" : card.score >= 60 ? "score-warn" : "score-bad";
+    const vsSlaCell = card.avgVsSla === null
+      ? "-"
+      : `${card.avgVsSla >= 0 ? "+" : ""}${card.avgVsSla.toFixed(1)}d<div class="low-sample">${card.avgReturnDays.toFixed(1)}d actual avg</div>`;
+    return `
+      <tr>
+        <td>${escapeHtml(card.name)}</td>
+        <td>${formatNumber(card.volume)}</td>
+        <td>${formatPercentValue(card.volumeShare)}</td>
+        <td>${formatPercentValue(card.pendingRate)}</td>
+        <td>${vsSlaCell}</td>
+        <td><span class="pill ${tier}">${card.score.toFixed(0)}/100</span></td>
+      </tr>
+    `;
+  }).join("");
 }
 
 function dateKey(date) {
@@ -578,6 +1270,10 @@ function formatNumber(value) {
 function formatPercent(value, total) {
   if (!total) return "0%";
   return `${((value / total) * 100).toFixed(1)}%`;
+}
+
+function formatPercentValue(fraction) {
+  return `${((fraction || 0) * 100).toFixed(1)}%`;
 }
 
 function formatDate(date) {
