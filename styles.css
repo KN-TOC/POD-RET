@@ -174,7 +174,7 @@ h2 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto auto;
   gap: 12px;
   align-items: end;
   margin-top: 18px;
@@ -220,6 +220,16 @@ button {
 button:hover {
   border-color: var(--cyan);
   background: var(--cyan);
+}
+
+.export-button {
+  background: var(--good);
+  border-color: var(--good);
+}
+
+.export-button:hover {
+  background: #06a67b;
+  border-color: #06a67b;
 }
 
 .status-line {
@@ -537,6 +547,160 @@ button:hover {
 
 .daily-chart {
   min-height: 300px;
+}
+
+.bar-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.plan-bar {
+  fill: var(--navy);
+}
+
+.actual-bar {
+  fill: var(--mint);
+}
+
+.sunburst-section {
+  margin-top: 16px;
+}
+
+.sunburst-panel {
+  min-height: 580px;
+}
+
+.sunburst-chart,
+.sunburst-layout {
+  flex: 1;
+  min-height: 0;
+}
+
+.sunburst-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 18px;
+  align-items: center;
+}
+
+.sunburst-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 500px;
+  display: block;
+}
+
+.sunburst-arc {
+  stroke: var(--surface);
+  stroke-width: 2;
+  transition: opacity 160ms ease;
+}
+
+.sunburst-arc:hover {
+  opacity: 0.76;
+}
+
+.sunburst-center {
+  fill: var(--warm);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.sunburst-total {
+  fill: var(--navy);
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.sunburst-caption {
+  fill: var(--graphite);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sunburst-legend {
+  display: grid;
+  gap: 10px;
+  color: var(--graphite);
+  font-size: 14px;
+}
+
+.sunburst-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sunburst-stat span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sunburst-stat strong {
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.sunburst-stat strong small {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sunburst-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.sunburst-legend small {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.sunburst-breakdown {
+  margin-top: 18px;
+}
+
+.sunburst-breakdown h3 {
+  margin: 0 0 10px;
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.sunburst-table th,
+.sunburst-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sunburst-table th:first-child,
+.sunburst-table td:first-child {
+  text-align: left;
+}
+
+.sunburst-table .status-on-time {
+  color: #057f5e;
+}
+
+.sunburst-table .status-not-on-time {
+  color: var(--cyan);
+}
+
+.sunburst-table .status-pending {
+  color: var(--navy);
+}
+
+.sunburst-table .status-cancel {
+  color: var(--red);
 }
 
 .line-chart {
@@ -876,6 +1040,14 @@ tbody tr:hover {
   .donut {
     width: 160px;
   }
+
+  .sunburst-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sunburst-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -893,6 +1065,10 @@ tbody tr:hover {
   .toolbar,
   .kpi-grid,
   .donut-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .sunburst-legend {
     grid-template-columns: 1fr;
   }
 
