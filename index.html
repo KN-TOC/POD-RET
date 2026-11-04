@@ -43,6 +43,7 @@
         <select id="subFilter"></select>
       </label>
       <button id="resetFilters" type="button">Reset filters</button>
+      <button id="exportButton" type="button" class="export-button">Export to Excel</button>
     </section>
 
     <section class="status-line" aria-live="polite">
@@ -72,9 +73,9 @@
         <small id="pendingRate">0%</small>
       </article>
       <article class="kpi-card danger">
-        <span>Cancel</span>
-        <strong id="cancelCount">0</strong>
-        <small id="cancelRate">0%</small>
+        <span>Overdue POD</span>
+        <strong id="overduePod">0</strong>
+        <small id="overdueContext">0 due today</small>
       </article>
     </section>
 
@@ -113,6 +114,18 @@
           </div>
         </div>
         <div id="dailyChart" class="daily-chart daily-chart-tall" role="img" aria-label="Daily plan versus actual POD return chart"></div>
+      </article>
+    </section>
+
+    <section class="sunburst-section">
+      <article class="panel sunburst-panel">
+        <div class="panel-header">
+          <div>
+            <h2>POD Status by Sub-Contractor</h2>
+            <p>Inner ring shows delivery volume by sub-contractor; outer ring shows each sub-contractor's POD status mix.</p>
+          </div>
+        </div>
+        <div id="podSunburst" class="sunburst-chart" role="img" aria-label="POD status by sub-contractor sunburst chart"></div>
       </article>
     </section>
 
@@ -195,8 +208,8 @@
       <article class="panel">
         <div class="panel-header">
           <div>
-            <h2>Average POD Return Days</h2>
-            <p>Days vs. each record's own province SLA target (fair across regions with different transit times)</p>
+            <h2>POD Return SLA Achievement</h2>
+            <p>Share of returned records completed within each record's own province SLA target — hit/miss rate, not magnitude, so short-haul and long-haul routes are compared fairly</p>
           </div>
           <label class="panel-control">
             <span>Group by</span>
@@ -231,7 +244,7 @@
         <div class="panel-header">
           <div>
             <h2>Carrier Scorecard</h2>
-            <p>Combined view of volume share, pending rate, average days vs. each record's province SLA, and an overall quality score per sub-contractor</p>
+            <p>Combined view of volume share, pending rate, province-SLA achievement rate, and an overall quality score per sub-contractor</p>
           </div>
         </div>
         <div class="table-wrap">
@@ -242,7 +255,7 @@
                 <th>Volume</th>
                 <th>Volume Share</th>
                 <th>Pending Rate</th>
-                <th>Avg vs SLA</th>
+                <th>SLA Achievement</th>
                 <th>Quality Score</th>
               </tr>
             </thead>
