@@ -176,20 +176,22 @@ const elements = {
   monthFilter: document.getElementById("monthFilter"),
   subFilter: document.getElementById("subFilter"),
   resetFilters: document.getElementById("resetFilters"),
+  exportButton: document.getElementById("exportButton"),
   totalDeliveries: document.getElementById("totalDeliveries"),
   onTime: document.getElementById("onTime"),
   notOnTime: document.getElementById("notOnTime"),
   pendingPod: document.getElementById("pendingPod"),
-  cancelCount: document.getElementById("cancelCount"),
+  overduePod: document.getElementById("overduePod"),
+  overdueContext: document.getElementById("overdueContext"),
   totalContext: document.getElementById("totalContext"),
   onTimeRate: document.getElementById("onTimeRate"),
   lateRate: document.getElementById("lateRate"),
   pendingRate: document.getElementById("pendingRate"),
-  cancelRate: document.getElementById("cancelRate"),
   statusDonut: document.getElementById("statusDonut"),
   statusLegend: document.getElementById("statusLegend"),
   volumeDonut: document.getElementById("volumeDonut"),
   volumeLegend: document.getElementById("volumeLegend"),
+  podSunburst: document.getElementById("podSunburst"),
   earlyDonut: document.getElementById("earlyDonut"),
   earlyLegend: document.getElementById("earlyLegend"),
   earlyLeaderboard: document.getElementById("earlyLeaderboard"),
@@ -213,6 +215,8 @@ elements.resetFilters.addEventListener("click", () => {
   renderDashboard();
 });
 
+elements.exportButton.addEventListener("click", handleExport);
+
 ["hub", "region", "month", "sub"].forEach((key) => {
   elements[`${key}Filter`].addEventListener("change", (event) => {
     state.filters[key] = event.target.value;
@@ -231,6 +235,58 @@ elements.trendGranularity.addEventListener("change", (event) => {
 });
 
 renderDashboard();
+
+function handleExport() {
+  if (typeof XLSX === "undefined") {
+    alert("Export library failed to load. Please check your internet connection and try again.");
+    return;
+  }
+
+  const rows = getFilteredRows();
+  if (!rows.length) {
+    alert("No data to export for the current filters.");
+    return;
+  }
+
+  const today = startOfToday();
+  const statusLabel = { onTime: "On-Time", notOnTime: "Not On-Time", pending: "Pending", cancel: "Cancel" };
+
+  const header = [
+    "Sub", "Hub", "Region", "Province", "Month", "Order",
+    "Loading Date", "Plan POD Return", "Actual POD Return", "Delivery Date",
+    "Status", "SLA (days)", "Days Overdue"
+  ];
+
+  const data = rows.map((row) => {
+    const daysOverdue = row.bucket === "pending" && row.planPodDate
+      ? Math.max(0, Math.floor((today - stripTime(row.planPodDate)) / 86400000))
+      : "";
+    return [
+      row.sub,
+      row.hub,
+      row.region,
+      row.province,
+      row.month,
+      row.order,
+      formatDate(row.loadingDateValue),
+      formatDate(row.planPodDate),
+      formatDate(row.actualPodDate),
+      formatDate(row.deliveryDateValue),
+      statusLabel[row.bucket] || row.bucket,
+      row.slaDays ?? "",
+      daysOverdue
+    ];
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet([header, ...data]);
+  worksheet["!cols"] = header.map(() => ({ wch: 16 }));
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "POD Export");
+
+  const stamp = dateKey(today);
+  XLSX.writeFile(workbook, `POD_Export_${stamp}.xlsx`);
+}
 
 function handleFileUpload(event) {
   const file = event.target.files[0];
@@ -478,16 +534,17 @@ function renderDashboard() {
   elements.onTime.textContent = formatNumber(summary.onTime);
   elements.notOnTime.textContent = formatNumber(summary.notOnTime);
   elements.pendingPod.textContent = formatNumber(summary.pending);
-  elements.cancelCount.textContent = formatNumber(summary.cancel);
+  elements.overduePod.textContent = formatNumber(summary.overdue);
   elements.totalContext.textContent = `${formatNumber(summary.active)} active deliveries`;
   elements.onTimeRate.textContent = `${formatPercent(summary.onTime, summary.active)} of active`;
   elements.lateRate.textContent = `${formatPercent(summary.notOnTime, summary.active)} of active`;
   elements.pendingRate.textContent = `${formatPercent(summary.pending, summary.active)} of active`;
-  elements.cancelRate.textContent = `${formatPercent(summary.cancel, summary.total)} of total`;
+  elements.overdueContext.textContent = `${formatNumber(summary.dueToday)} due today`;
   elements.rowStatus.textContent = state.normalized.length ? `${formatNumber(rows.length)} of ${formatNumber(state.normalized.length)} rows shown` : "";
 
   renderDonut(summary);
   renderVolumeShare(rows);
+  renderPodSunburst(rows);
   renderDailyChart(rows);
   renderSubPerformance(rows);
   renderReturnTiming(rows);
@@ -509,10 +566,16 @@ function getFilteredRows() {
 }
 
 function summarize(rows) {
-  const summary = { total: rows.length, active: 0, onTime: 0, notOnTime: 0, pending: 0, cancel: 0 };
+  const today = startOfToday();
+  const summary = { total: rows.length, active: 0, onTime: 0, notOnTime: 0, pending: 0, cancel: 0, overdue: 0, dueToday: 0 };
   rows.forEach((row) => {
     summary[row.bucket] = (summary[row.bucket] ?? 0) + 1;
     if (row.bucket !== "cancel") summary.active += 1;
+    if (row.bucket === "pending" && row.planPodDate) {
+      const rawDiff = Math.floor((today - stripTime(row.planPodDate)) / 86400000);
+      if (rawDiff > 0) summary.overdue += 1;
+      else if (rawDiff === 0) summary.dueToday += 1;
+    }
   });
   return summary;
 }
@@ -592,18 +655,16 @@ function renderDailyChart(rows) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const maxValue = Math.max(...points.map((point) => Math.max(point.plan, point.actual)), 1);
-  const xStep = points.length > 1 ? plotWidth / (points.length - 1) : plotWidth;
   const yScale = (value) => margin.top + plotHeight - (value / maxValue) * plotHeight;
-  const xScale = (index) => margin.left + (points.length > 1 ? index * xStep : plotWidth / 2);
-  const planPath = linePath(points, (point) => point.plan, xScale, yScale);
-  const actualPath = linePath(points, (point) => point.actual, xScale, yScale);
+  const bandWidth = plotWidth / points.length;
+  const barWidth = Math.max(4, Math.min(28, bandWidth * 0.34));
   const yTicks = makeTicks(maxValue, 4);
   const labelEvery = Math.max(1, Math.ceil(points.length / 6));
 
   elements.dailyChart.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" class="line-chart" role="img" aria-labelledby="dailyChartTitle dailyChartDesc">
+    <svg viewBox="0 0 ${width} ${height}" class="bar-chart" role="img" aria-labelledby="dailyChartTitle dailyChartDesc">
       <title id="dailyChartTitle">Daily POD return plan versus actual</title>
-      <desc id="dailyChartDesc">Line chart grouped by Loading date comparing planned POD return count and actual POD return count.</desc>
+      <desc id="dailyChartDesc">Grouped bar chart by Loading date comparing planned POD return count and actual POD return count.</desc>
       <g class="chart-grid">
         ${yTicks.map((tick) => {
           const y = yScale(tick);
@@ -614,31 +675,149 @@ function renderDailyChart(rows) {
         <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${width - margin.right}" y2="${margin.top + plotHeight}"></line>
         ${points.map((point, index) => {
           if (index % labelEvery !== 0 && index !== points.length - 1) return "";
-          const x = xScale(index);
+          const x = margin.left + bandWidth * (index + 0.5);
           return `<text x="${x}" y="${height - 24}" text-anchor="middle">${escapeHtml(point.label)}</text>`;
         }).join("")}
       </g>
-      <path class="plan-line" d="${planPath}"></path>
-      <path class="actual-line" d="${actualPath}"></path>
       ${points.map((point, index) => {
-        const x = xScale(index);
+        const groupCenter = margin.left + bandWidth * (index + 0.5);
+        const planY = yScale(point.plan);
+        const actualY = yScale(point.actual);
         return `
-          <circle class="plan-dot" cx="${x}" cy="${yScale(point.plan)}" r="4">
+          <rect class="plan-bar" x="${(groupCenter - barWidth - 2).toFixed(1)}" y="${planY.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${(margin.top + plotHeight - planY).toFixed(1)}" rx="2">
             <title>${escapeHtml(point.label)} - Plan: ${point.plan}</title>
-          </circle>
-          <circle class="actual-dot" cx="${x}" cy="${yScale(point.actual)}" r="4">
+          </rect>
+          <rect class="actual-bar" x="${(groupCenter + 2).toFixed(1)}" y="${actualY.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${(margin.top + plotHeight - actualY).toFixed(1)}" rx="2">
             <title>${escapeHtml(point.label)} - Actual: ${point.actual}</title>
-          </circle>
+          </rect>
         `;
       }).join("")}
       <g class="chart-legend">
-        <line class="plan-line" x1="${margin.left}" y1="14" x2="${margin.left + 22}" y2="14"></line>
+        <rect class="plan-bar" x="${margin.left}" y="7" width="16" height="12" rx="2"></rect>
         <text x="${margin.left + 28}" y="18">Plan POD Return</text>
-        <line class="actual-line" x1="${margin.left + 178}" y1="14" x2="${margin.left + 200}" y2="14"></line>
+        <rect class="actual-bar" x="${margin.left + 178}" y="7" width="16" height="12" rx="2"></rect>
         <text x="${margin.left + 206}" y="18">Actual POD Return</text>
       </g>
     </svg>
   `;
+}
+
+function renderPodSunburst(rows) {
+  const bySub = new Map();
+  rows.forEach((row) => {
+    const sub = row.sub || "Unassigned";
+    const status = sunburstStatus(row.bucket);
+    if (!bySub.has(sub)) bySub.set(sub, { name: sub, total: 0, statuses: new Map() });
+    const group = bySub.get(sub);
+    group.total += 1;
+    group.statuses.set(status, (group.statuses.get(status) || 0) + 1);
+  });
+
+  const groups = Array.from(bySub.values()).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  const total = rows.length;
+  if (!total || !groups.length) {
+    elements.podSunburst.innerHTML = `<div class="empty">No POD status data available for the selected data.</div>`;
+    return;
+  }
+
+  const width = 1040;
+  const height = 530;
+  const cx = width / 2;
+  const cy = height / 2;
+  const innerRadius = 70;
+  const subOuterRadius = 150;
+  const statusOuterRadius = 225;
+  const statusOrder = ["On-Time", "Not On-Time", "Pending POD", "Cancel"];
+  const statusColor = { "On-Time": "#08c792", "Not On-Time": "#0099da", "Pending POD": "#003369", "Cancel": "#ed2939" };
+  const subColors = ["#003369", "#62635b", "#929288", "#c5c6bf"];
+  const statusTotals = new Map(statusOrder.map((status) => [status, 0]));
+  let angle = -Math.PI / 2;
+  const arcs = [];
+
+  groups.forEach((group, groupIndex) => {
+    const groupAngle = (group.total / total) * Math.PI * 2;
+    const start = angle;
+    const end = angle + groupAngle;
+    const baseColor = subColors[groupIndex % subColors.length];
+    arcs.push({ type: "sub", label: group.name, value: group.total, start, end, color: baseColor });
+    let childAngle = start;
+    statusOrder.forEach((status) => {
+      const count = group.statuses.get(status) || 0;
+      if (!count) return;
+      statusTotals.set(status, statusTotals.get(status) + count);
+      const childEnd = childAngle + (count / total) * Math.PI * 2;
+      arcs.push({ type: "status", label: status, sub: group.name, value: count, start: childAngle, end: childEnd, color: statusColor[status] });
+      childAngle = childEnd;
+    });
+    angle = end;
+  });
+
+  elements.podSunburst.innerHTML = `
+    <div class="sunburst-layout">
+      <svg viewBox="0 0 ${width} ${height}" class="sunburst-svg" role="img" aria-labelledby="sunburstTitle sunburstDesc">
+        <title id="sunburstTitle">POD status by sub-contractor</title>
+        <desc id="sunburstDesc">Sunburst chart where the inner ring shows sub-contractor delivery volume and the outer ring shows the POD status distribution for each sub-contractor.</desc>
+        ${arcs.map((arc) => {
+          const radius = arc.type === "sub" ? [innerRadius, subOuterRadius] : [subOuterRadius + 3, statusOuterRadius];
+          const label = arc.type === "sub" ? `${arc.label}: ${formatNumber(arc.value)} deliveries` : `${arc.sub} - ${arc.label}: ${formatNumber(arc.value)}`;
+          return `<path class="sunburst-arc sunburst-${arc.type}" d="${donutArc(cx, cy, radius[0], radius[1], arc.start, arc.end)}" fill="${arc.color}" data-tooltip="${escapeHtml(label)}"><title>${escapeHtml(label)}</title></path>`;
+        }).join("")}
+        <circle class="sunburst-center" cx="${cx}" cy="${cy}" r="${innerRadius - 4}"></circle>
+        <text class="sunburst-total" x="${cx}" y="${cy - 5}" text-anchor="middle">${formatNumber(total)}</text>
+        <text class="sunburst-caption" x="${cx}" y="${cy + 20}" text-anchor="middle">Deliveries</text>
+      </svg>
+      <div class="sunburst-legend" aria-label="POD status legend">
+        ${statusOrder.map((status) => {
+          const count = statusTotals.get(status) || 0;
+          return `<div class="sunburst-stat"><span><i style="background:${statusColor[status]}"></i>${status}</span><strong>${formatNumber(count)} <small>${formatPercent(count, total)}</small></strong></div>`;
+        }).join("")}
+        <small>Inner ring: Sub-Contractor volume<br>Outer ring: POD status<br>Hover a segment for Sub details</small>
+      </div>
+    </div>
+    <div class="sunburst-breakdown">
+      <h3>Sub-Contractor Status Breakdown</h3>
+      <div class="table-wrap">
+        <table class="sunburst-table">
+          <thead>
+            <tr>
+              <th>Sub-Contractor</th>
+              <th class="status-on-time">On-Time</th>
+              <th class="status-not-on-time">Not On-Time</th>
+              <th class="status-pending">Pending POD</th>
+              <th class="status-cancel">Cancel</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${groups.map((group) => `
+              <tr>
+                <td>${escapeHtml(group.name)}</td>
+                <td class="status-on-time">${formatNumber(group.statuses.get("On-Time") || 0)}</td>
+                <td class="status-not-on-time">${formatNumber(group.statuses.get("Not On-Time") || 0)}</td>
+                <td class="status-pending">${formatNumber(group.statuses.get("Pending POD") || 0)}</td>
+                <td class="status-cancel">${formatNumber(group.statuses.get("Cancel") || 0)}</td>
+                <td><strong>${formatNumber(group.total)}</strong></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function sunburstStatus(bucket) {
+  return { onTime: "On-Time", notOnTime: "Not On-Time", pending: "Pending POD", cancel: "Cancel" }[bucket] || "Pending POD";
+}
+
+function donutArc(cx, cy, innerRadius, outerRadius, start, end) {
+  const largeArc = end - start > Math.PI ? 1 : 0;
+  const polar = (radius, angle) => [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+  const [x1, y1] = polar(outerRadius, start);
+  const [x2, y2] = polar(outerRadius, end);
+  const [x3, y3] = polar(innerRadius, end);
+  const [x4, y4] = polar(innerRadius, start);
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${x3.toFixed(2)} ${y3.toFixed(2)} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4.toFixed(2)} ${y4.toFixed(2)} Z`;
 }
 
 function buildDailyPlanActual(rows) {
@@ -1018,13 +1197,13 @@ function buildAvgReturnDays(rows, dimension) {
     if (!row.actualPodDate || !row.loadingDateValue) return;
     const key = row[dimension] || "Unassigned";
     const days = Math.round((row.actualPodDate - row.loadingDateValue) / 86400000);
-    if (!map.has(key)) map.set(key, { name: key, sum: 0, count: 0, vsSlaSum: 0, vsSlaCount: 0 });
+    if (!map.has(key)) map.set(key, { name: key, sum: 0, count: 0, metCount: 0, slaCount: 0 });
     const group = map.get(key);
     group.sum += days;
     group.count += 1;
     if (row.slaDays !== null && row.slaDays !== undefined) {
-      group.vsSlaSum += days - row.slaDays;
-      group.vsSlaCount += 1;
+      group.slaCount += 1;
+      if (days <= row.slaDays) group.metCount += 1;
     }
   });
 
@@ -1032,13 +1211,13 @@ function buildAvgReturnDays(rows, dimension) {
     .map((group) => ({
       ...group,
       avg: group.count ? group.sum / group.count : 0,
-      avgVsSla: group.vsSlaCount ? group.vsSlaSum / group.vsSlaCount : null,
-      slaCoverage: group.count ? group.vsSlaCount / group.count : 0
+      achievementRate: group.slaCount ? group.metCount / group.slaCount : null,
+      slaCoverage: group.count ? group.slaCount / group.count : 0
     }))
     .sort((a, b) => {
-      const aValue = a.avgVsSla === null ? -Infinity : a.avgVsSla;
-      const bValue = b.avgVsSla === null ? -Infinity : b.avgVsSla;
-      return bValue - aValue || b.avg - a.avg;
+      const aValue = a.achievementRate === null ? Infinity : a.achievementRate;
+      const bValue = b.achievementRate === null ? Infinity : b.achievementRate;
+      return aValue - bValue || a.avg - b.avg;
     });
 }
 
@@ -1051,15 +1230,12 @@ function renderAvgReturnBars(rows) {
     return;
   }
 
-  const maxAbs = Math.max(...groups.map((group) => Math.abs(group.avgVsSla ?? 0)), 1);
   elements.avgReturnBars.innerHTML = groups.map((group) => {
-    const hasSla = group.avgVsSla !== null;
-    const width = hasSla ? (Math.abs(group.avgVsSla) / maxAbs) * 100 : 4;
-    const isBehind = hasSla && group.avgVsSla > 0;
-    const color = !hasSla ? "#c5c6bf" : isBehind ? "#ed2939" : "#08c792";
-    const vsSlaLabel = hasSla
-      ? `${group.avgVsSla >= 0 ? "+" : ""}${group.avgVsSla.toFixed(1)}d vs SLA`
-      : "No SLA mapped";
+    const hasSla = group.achievementRate !== null;
+    const pct = hasSla ? group.achievementRate * 100 : 0;
+    const width = hasSla ? pct : 4;
+    const color = !hasSla ? "#c5c6bf" : pct >= 90 ? "#08c792" : pct >= 75 ? "#f2a900" : "#ed2939";
+    const label = hasSla ? `${pct.toFixed(1)}% met SLA` : "No SLA mapped";
     const coverageNote = hasSla && group.slaCoverage < 1
       ? ` (${formatPercentValue(group.slaCoverage)} of records mapped to an SLA)`
       : "";
@@ -1067,7 +1243,7 @@ function renderAvgReturnBars(rows) {
       <div class="bar-row">
         <div class="bar-head">
           <strong>${escapeHtml(group.name)}</strong>
-          <span>${vsSlaLabel}</span>
+          <span>${label}</span>
         </div>
         <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${width}%; background:${color}"></div></div>
         <div class="bar-meta">${group.avg.toFixed(1)} days actual avg · ${formatNumber(group.count)} returned records${coverageNote}</div>
@@ -1209,16 +1385,16 @@ function buildCarrierScorecard(rows) {
     const pendingRate = pendingGroup ? pendingGroup.rate : 0;
     const avgReturnGroup = avgReturnByName.get(name);
     const avgReturnDays = avgReturnGroup ? avgReturnGroup.avg : null;
-    const avgVsSla = avgReturnGroup ? avgReturnGroup.avgVsSla : null;
+    const achievementRate = avgReturnGroup ? avgReturnGroup.achievementRate : null;
 
     let score = 100;
     score -= Math.min(pendingRate * 100, 100) * 0.6;
-    if (avgVsSla !== null) {
-      score -= Math.max(0, avgVsSla) * 3;
+    if (achievementRate !== null) {
+      score -= (1 - achievementRate) * 40;
     }
     score = Math.max(0, Math.min(100, score));
 
-    return { name, volume, volumeShare, pendingRate, avgReturnDays, avgVsSla, score };
+    return { name, volume, volumeShare, pendingRate, avgReturnDays, achievementRate, score };
   });
 
   return scorecards.sort((a, b) => b.score - a.score || b.volume - a.volume);
@@ -1234,16 +1410,16 @@ function renderScorecard(rows) {
 
   elements.scorecardBody.innerHTML = scorecards.map((card) => {
     const tier = card.score >= 80 ? "score-good" : card.score >= 60 ? "score-warn" : "score-bad";
-    const vsSlaCell = card.avgVsSla === null
+    const slaCell = card.achievementRate === null
       ? "-"
-      : `${card.avgVsSla >= 0 ? "+" : ""}${card.avgVsSla.toFixed(1)}d<div class="low-sample">${card.avgReturnDays.toFixed(1)}d actual avg</div>`;
+      : `${(card.achievementRate * 100).toFixed(1)}%<div class="low-sample">${card.avgReturnDays.toFixed(1)}d actual avg</div>`;
     return `
       <tr>
         <td>${escapeHtml(card.name)}</td>
         <td>${formatNumber(card.volume)}</td>
         <td>${formatPercentValue(card.volumeShare)}</td>
         <td>${formatPercentValue(card.pendingRate)}</td>
-        <td>${vsSlaCell}</td>
+        <td>${slaCell}</td>
         <td><span class="pill ${tier}">${card.score.toFixed(0)}/100</span></td>
       </tr>
     `;
